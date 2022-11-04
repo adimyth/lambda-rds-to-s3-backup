@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Periodically backup each database individually in an RDS instance to S3 using lambda functions
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+    Function:
+        Timeout: 3
+        Tracing: Active
+    Api:
+        TracingEnabled: True
+
+Parameters:
+    CronExpression:
+        Type: String
+        # cron expression to run every 12 hours
+        Default: cron(* */12 * * *)
+        Description: Cron expression for PostgreSQL database backup
+
+Resources:
+    Lambda:
+        Type: AWS::Lambda::Function
+        Properties:
+            Description: Python Lambda Function to PostgreSQL database backup
+            FunctionName: "backup-rds-single-database-lambda"
+            Environment:
+                Variables:
+                    S3_BUCKET: !Ref S3BUCKET
+            PackageType: Image
+            Role: !GetAtt LambdaExecutionRole.Arn # references lambda execution role required
+            MemorySize: 512
+            Timeout: 360
+        Metadata:
+            Dockerfile: Dockerfile
+            DockerContext: ./database-backup
+
+    LambdaExecutionRole:
+        # https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html#permissions-executionrole-api
+        Type: AWS::IAM::Role
+        Properties:
+            # Trust policies define which entities (lambda here) can assume the role
+            AssumeRolePolicyDocument:
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service:
+                              - lambda.amazonaws.com
+                      Action:
+                          - sts:AssumeRole
+            # adds a new inline policy associated with the role
+            Policies:
+                - PolicyName: S3Policy
+                  PolicyDocument:
+                      Statement:
+                          - Action:
+                                - s3:PutObject
+                            Effect: Allow
+                            Resource:
+                                - !Join [
+                                      "",
+                                      ["arn:aws:s3:::", !Ref S3BUCKET, "/*"],
+                                  ]
+            # attaching managed aws policy - AWSLambdaBasicExecutionRole
+            ManagedPolicyArns:
+                - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+    S3BUCKET:
+        Type: AWS::S3::Bucket
+        Properties:
+            # S3 bucket name
+            BucketName:
+                !Join [
+                    "-",
+                    [!Ref AWS::StackName, "backup-rds-single-database-bucket"],
+                ]
+            # One of Private, PublicRead, PublicReadWrite, etc
+            AccessControl: Private
+            PublicAccessBlockConfiguration:
+                BlockPublicAcls: True
+                BlockPublicPolicy: True
+                IgnorePublicAcls: True
+                RestrictPublicBuckets: True
+            # Used for Object lifecycle management
+            LifecycleConfiguration:
+                Rules:
+                    - Id: GlacierRule
+                      Status: Enabled
+                      Transitions:
+                          # transition to Glacier storage after 1 day, which is a more cost-efficient storage class
+                          - TransitionInDays: 1
+                            StorageClass: GLACIER
+                      # delete objects after 2 day
+                      ExpirationInDays: 2
+
+    Cron:
+        Type: AWS::Events::Rule
+        Properties:
+            Description: PostgreSQL database backup
+            Name: !Join ["-", [!Ref AWS::StackName, "backup-rds-single-cron"]]
+            ScheduleExpression: !Ref CronExpression
+            State: ENABLED
+            Targets:
+                - Arn: !GetAtt Lambda.Arn
+                  Id: Lambda
+                  # we are passing the list of databases to be backed up as input to the event
+                  Input: >-
+                      {
+                        "DATABASES": [  
+                                        "sharpsell-dev-postgresql-sharpsell",
+                                        "sharpsell-uat-postgresql-sharpsell"
+                                      ]
+                      }

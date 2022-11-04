@@ -1,0 +1,12 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "lambda-postgres-s3-backup"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-bty01fkaij5q"
+s3_prefix = "lambda-postgres-s3-backup"
+region = "ap-south-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "CronExpression=\"cron(0 */12 * * *)\""
+image_repositories = ["Lambda=030740437667.dkr.ecr.ap-south-1.amazonaws.com/lambdapostgress3backup1121c8a9/lambda04a7da3crepo"]

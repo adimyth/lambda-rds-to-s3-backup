@@ -1,0 +1,8 @@
+{
+    "DATABASES": [
+        "test",
+        "shopping",
+        "facebook",
+        "events"
+    ]
+}

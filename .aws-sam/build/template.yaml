@@ -1,0 +1,109 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Periodically backup each database individually in an RDS instance to
+  S3 using lambda functions
+Globals:
+  Function:
+    Timeout: 3
+    Tracing: Active
+  Api:
+    TracingEnabled: true
+Parameters:
+  CronExpression:
+    Type: String
+    Default: cron(* */12 * * *)
+    Description: Cron expression for PostgreSQL database backup
+Resources:
+  Lambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Python Lambda Function to PostgreSQL database backup
+      FunctionName: backup-rds-single-database-lambda
+      Environment:
+        Variables:
+          S3_BUCKET:
+            Ref: S3BUCKET
+      PackageType: Image
+      Role:
+        Fn::GetAtt:
+        - LambdaExecutionRole
+        - Arn
+      MemorySize: 512
+      Timeout: 360
+      Code:
+        ImageUri: lambda:latest
+    Metadata:
+      DockerContext: /Users/adimyth/PersonalProjects/lambda-rds-to-s3-backup/database-backup
+      Dockerfile: Dockerfile
+      SamResourceId: Lambda
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+      - PolicyName: S3Policy
+        PolicyDocument:
+          Statement:
+          - Action:
+            - s3:PutObject
+            Effect: Allow
+            Resource:
+            - Fn::Join:
+              - ''
+              - - 'arn:aws:s3:::'
+                - Ref: S3BUCKET
+                - /*
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  S3BUCKET:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Join:
+        - '-'
+        - - Ref: AWS::StackName
+          - backup-rds-single-database-bucket
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+        - Id: GlacierRule
+          Status: Enabled
+          Transitions:
+          - TransitionInDays: 1
+            StorageClass: GLACIER
+          ExpirationInDays: 2
+  Cron:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: PostgreSQL database backup
+      Name:
+        Fn::Join:
+        - '-'
+        - - Ref: AWS::StackName
+          - backup-rds-single-cron
+      ScheduleExpression:
+        Ref: CronExpression
+      State: ENABLED
+      Targets:
+      - Arn:
+          Fn::GetAtt:
+          - Lambda
+          - Arn
+        Id: Lambda
+        Input: "{\n  \"DATABASES\": [  \n                  \"backend-v2-dev-rds-sharpsell\"\
+          , \n                  \"mibl-dev-postgresql-sharpsell\",\n             \
+          \     \"mibl-uat-postgresql-sharpsell\",\n                  \"sharpsell-dev-postgresql-sharpsell\"\
+          ,\n                  \"sharpsell-uat-postgresql-sharpsell\"\n          \
+          \      ]\n}"
