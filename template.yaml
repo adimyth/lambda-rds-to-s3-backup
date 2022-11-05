@@ -31,8 +31,9 @@ Resources:
             MemorySize: 512
             Timeout: 360
         Metadata:
-            Dockerfile: Dockerfile
+            DockerTag: latest
             DockerContext: ./database-backup
+            Dockerfile: Dockerfile
 
     LambdaExecutionRole:
         # https://docs.aws.amazon.com/lambda/latest/dg/lambda-intro-execution-role.html#permissions-executionrole-api

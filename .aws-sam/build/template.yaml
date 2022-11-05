@@ -34,6 +34,7 @@ Resources:
         ImageUri: lambda:latest
     Metadata:
       DockerContext: /Users/adimyth/PersonalProjects/lambda-rds-to-s3-backup/database-backup
+      DockerTag: latest
       Dockerfile: Dockerfile
       SamResourceId: Lambda
   LambdaExecutionRole:
@@ -102,8 +103,6 @@ Resources:
           - Lambda
           - Arn
         Id: Lambda
-        Input: "{\n  \"DATABASES\": [  \n                  \"backend-v2-dev-rds-sharpsell\"\
-          , \n                  \"mibl-dev-postgresql-sharpsell\",\n             \
-          \     \"mibl-uat-postgresql-sharpsell\",\n                  \"sharpsell-dev-postgresql-sharpsell\"\
+        Input: "{\n  \"DATABASES\": [  \n                  \"sharpsell-dev-postgresql-sharpsell\"\
           ,\n                  \"sharpsell-uat-postgresql-sharpsell\"\n          \
           \      ]\n}"
