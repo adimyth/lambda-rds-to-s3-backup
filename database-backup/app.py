@@ -71,13 +71,3 @@ def handler(event, context):
 
         end = datetime.now(timezone)
         print("Time taken: %s\n\n" % (end - start))
-
-
-if __name__ == "__main__":
-    event = {
-        "DATABASES": [
-            "sharpsell-dev-postgresql-sharpsell",
-            "sharpsell-uat-postgresql-sharpsell",
-        ]
-    }
-    handler(event, None)
